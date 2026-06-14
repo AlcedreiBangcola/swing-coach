@@ -1,0 +1,931 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>Range Read — swing coach</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --bg:#0E1A14;
+    --bg2:#0a130e;
+    --surface:#16241C;
+    --surface2:#1d3027;
+    --line:#284036;
+    --ink:#EAF2EC;
+    --muted:#86a092;
+    --accent:#D9F24E;       /* range-marker yellow-green */
+    --accent-ink:#10210a;
+    --warn:#E8A24A;          /* clay */
+    --good:#7FD99A;
+    --bad:#E87A6A;
+    --display:"Space Grotesk",system-ui,sans-serif;
+    --body:"Inter",system-ui,sans-serif;
+    --mono:"JetBrains Mono",ui-monospace,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{background:var(--bg);color:var(--ink);font-family:var(--body);-webkit-font-smoothing:antialiased}
+  body{min-height:100dvh;padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
+  .wrap{max-width:520px;margin:0 auto;padding:22px 18px 60px}
+  .topbar{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:26px}
+  .brand{font-family:var(--display);font-weight:700;letter-spacing:-.02em;font-size:1.35rem}
+  .brand .dot{color:var(--accent)}
+  .tagline{font-family:var(--mono);font-size:.62rem;letter-spacing:.18em;text-transform:uppercase;color:var(--muted)}
+
+  h2{font-family:var(--display);font-weight:500;letter-spacing:-.01em;font-size:1.05rem;margin-bottom:4px}
+  .sub{color:var(--muted);font-size:.85rem;line-height:1.5;margin-bottom:18px}
+
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:18px;margin-bottom:14px}
+
+  .label{font-family:var(--mono);font-size:.6rem;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);margin-bottom:10px}
+
+  .seg{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .seg button{appearance:none;background:var(--bg2);border:1px solid var(--line);color:var(--ink);
+    font-family:var(--body);font-size:.9rem;font-weight:500;padding:13px 10px;border-radius:11px;cursor:pointer;
+    transition:border-color .15s,background .15s;text-align:left;line-height:1.3}
+  .seg button .hint{display:block;font-size:.7rem;color:var(--muted);margin-top:3px;font-weight:400}
+  .seg button[aria-pressed="true"]{border-color:var(--accent);background:var(--surface2)}
+  .seg button[aria-pressed="true"] .hint{color:var(--ink)}
+
+  .btn{display:flex;align-items:center;justify-content:center;gap:9px;width:100%;
+    background:var(--accent);color:var(--accent-ink);border:none;border-radius:12px;
+    font-family:var(--display);font-weight:700;font-size:1rem;letter-spacing:-.01em;
+    padding:15px;cursor:pointer;transition:filter .15s,opacity .15s}
+  .btn:disabled{opacity:.45;cursor:not-allowed}
+  .btn:not(:disabled):active{filter:brightness(.92)}
+  .btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--line);font-weight:500;font-family:var(--body)}
+
+  .note{font-size:.78rem;color:var(--muted);line-height:1.55;margin-top:12px}
+  .note b{color:var(--ink);font-weight:600}
+
+  input[type=file]{display:none}
+
+  /* capture / preview */
+  .stage{position:relative;width:100%;aspect-ratio:3/4;background:#000;border-radius:14px;overflow:hidden;border:1px solid var(--line)}
+  .stage video{width:100%;height:100%;object-fit:cover;display:block}
+  .stage .rec{position:absolute;top:10px;left:10px;display:flex;align-items:center;gap:7px;
+    font-family:var(--mono);font-size:.7rem;background:rgba(0,0,0,.5);padding:5px 9px;border-radius:20px}
+  .rec .blink{width:8px;height:8px;border-radius:50%;background:var(--bad);animation:blink 1s infinite}
+  @keyframes blink{50%{opacity:.25}}
+
+  /* progress */
+  .prog{height:8px;background:var(--bg2);border-radius:20px;overflow:hidden;border:1px solid var(--line)}
+  .prog > i{display:block;height:100%;width:0;background:var(--accent);transition:width .2s}
+  .progtxt{font-family:var(--mono);font-size:.72rem;color:var(--muted);margin-top:10px;text-align:center}
+
+  /* results */
+  .frames{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:6px}
+  .frame{background:var(--bg2);border:1px solid var(--line);border-radius:11px;overflow:hidden}
+  .frame canvas{width:100%;display:block;aspect-ratio:3/4;object-fit:cover;background:#000}
+  .frame .cap{padding:7px 8px}
+  .frame .p{font-family:var(--mono);font-weight:700;font-size:.72rem;color:var(--accent)}
+  .frame .n{font-size:.66rem;color:var(--muted)}
+
+  .metric{display:flex;align-items:baseline;justify-content:space-between;padding:11px 0;border-bottom:1px solid var(--line)}
+  .metric:last-child{border-bottom:none}
+  .metric .k{font-size:.86rem}
+  .metric .k small{display:block;color:var(--muted);font-size:.7rem;margin-top:2px}
+  .metric .v{font-family:var(--mono);font-weight:700;font-size:1.05rem;text-align:right;white-space:nowrap}
+  .metric .v .u{font-size:.66rem;color:var(--muted);font-weight:500;margin-left:3px}
+  .pill{font-family:var(--mono);font-size:.58rem;letter-spacing:.06em;text-transform:uppercase;padding:2px 7px;border-radius:20px;border:1px solid var(--line);color:var(--muted);margin-left:7px;vertical-align:middle}
+  .pill.ok{color:var(--good);border-color:#2c5a3c}
+  .pill.flag{color:var(--warn);border-color:#5a4326}
+
+  .fault{border-left:3px solid var(--warn);padding:2px 0 2px 13px;margin:16px 0}
+  .fault .ptag{font-family:var(--mono);font-size:.62rem;letter-spacing:.1em;color:var(--accent);text-transform:uppercase}
+  .fault h3{font-family:var(--display);font-weight:500;font-size:.98rem;margin:3px 0 5px}
+  .fault p{font-size:.84rem;color:var(--muted);line-height:1.55}
+  .fault .drill{font-size:.84rem;line-height:1.55;margin-top:7px}
+  .fault .drill b{color:var(--accent);font-weight:600;font-family:var(--mono);font-size:.7rem;letter-spacing:.08em;text-transform:uppercase;display:block;margin-bottom:2px}
+  .clean{color:var(--good);font-size:.88rem;line-height:1.5}
+
+  .cp{padding:18px 0;border-bottom:1px solid var(--line)}
+  .cp:first-child{padding-top:2px}
+  .cp:last-child{border-bottom:none;padding-bottom:2px}
+  .cphead{display:flex;align-items:baseline;gap:9px;margin-bottom:11px}
+  .cphead .cpp{font-family:var(--mono);font-weight:700;font-size:.78rem;color:var(--accent)}
+  .cphead .cpn{font-size:.82rem;color:var(--muted)}
+  .cpframe{width:100%;max-width:180px;border:1px solid var(--line);border-radius:11px;overflow:hidden;background:#000}
+  .cpframe canvas{width:100%;display:block;aspect-ratio:3/4;object-fit:cover}
+  .cp .fault{margin:14px 0 0}
+  .cp .fault:first-of-type{margin-top:14px}
+  .cp-clean{color:var(--good);font-size:.8rem;line-height:1.5;margin-top:11px;opacity:.85}
+
+  .cpscrub{display:flex;align-items:center;gap:10px;margin-top:10px;max-width:280px}
+  .cpscrub input[type=range]{flex:1;-webkit-appearance:none;appearance:none;height:4px;border-radius:4px;background:var(--line);outline:none}
+  .cpscrub input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:20px;height:20px;border-radius:50%;background:var(--accent);border:none;cursor:pointer}
+  .cpscrub input[type=range]::-moz-range-thumb{width:20px;height:20px;border-radius:50%;background:var(--accent);border:none;cursor:pointer}
+  .cpscrub-lbl{font-family:var(--mono);font-size:.62rem;color:var(--muted);white-space:nowrap;min-width:74px;text-align:right}
+
+  .disclaimer{font-size:.72rem;color:var(--muted);line-height:1.55;background:var(--bg2);border:1px solid var(--line);border-radius:11px;padding:13px 14px;margin-top:14px}
+  .disclaimer b{color:var(--ink)}
+
+  .err{background:#2a1714;border:1px solid #5a2b22;color:#f0c4ba;border-radius:12px;padding:14px;font-size:.85rem;line-height:1.5;margin-top:14px}
+
+  .tabs{display:flex;gap:6px;background:var(--bg2);border:1px solid var(--line);border-radius:12px;padding:4px;margin-bottom:24px}
+  .tabs button{flex:1;appearance:none;background:transparent;border:none;color:var(--muted);
+    font-family:var(--display);font-weight:500;font-size:.92rem;padding:9px;border-radius:9px;cursor:pointer;transition:.15s}
+  .tabs button[aria-pressed="true"]{background:var(--surface2);color:var(--ink)}
+
+  .catbar{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px}
+  .catbar button{appearance:none;background:var(--bg2);border:1px solid var(--line);color:var(--muted);
+    font-family:var(--mono);font-size:.66rem;letter-spacing:.06em;text-transform:uppercase;padding:6px 11px;border-radius:20px;cursor:pointer;transition:.15s}
+  .catbar button[aria-pressed="true"]{border-color:var(--accent);color:var(--ink);background:var(--surface2)}
+
+  .drill-item{padding:13px 0;border-bottom:1px solid var(--line)}
+  .drill-item:last-child{border-bottom:none}
+  .drill-item .dt{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
+  .drill-item h3{font-family:var(--display);font-weight:500;font-size:.96rem}
+  .drill-item .cat{font-family:var(--mono);font-size:.56rem;letter-spacing:.08em;text-transform:uppercase;color:var(--accent);white-space:nowrap}
+  .drill-item .helps{font-size:.78rem;color:var(--muted);margin:3px 0 6px;line-height:1.5}
+  .drill-item .how{font-size:.84rem;line-height:1.55}
+
+  .routine-step{display:flex;gap:12px;padding:12px 0;border-bottom:1px solid var(--line)}
+  .routine-step:last-child{border-bottom:none}
+  .routine-step .num{font-family:var(--mono);font-weight:700;color:var(--accent);font-size:.9rem;min-width:20px}
+  .routine-step h3{font-family:var(--display);font-weight:500;font-size:.95rem;margin-bottom:3px}
+  .routine-step p{font-size:.82rem;color:var(--muted);line-height:1.5}
+  .routine-intro{font-size:.84rem;line-height:1.55;margin-bottom:14px;color:var(--ink)}
+  .routine-empty{font-size:.85rem;color:var(--muted);line-height:1.55}
+
+  .hidden{display:none !important}
+  .spin{width:34px;height:34px;border:3px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:sp 1s linear infinite;margin:0 auto 16px}
+  @keyframes sp{to{transform:rotate(360deg)}}
+  @media (prefers-reduced-motion:reduce){.spin,.blink,.prog>i{animation:none;transition:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <div class="brand">Range<span class="dot">.</span>Read</div>
+    <div class="tagline">single-camera swing read</div>
+  </div>
+
+  <nav class="tabs" id="tabs">
+    <button data-tab="read" aria-pressed="true">Read swing</button>
+    <button data-tab="practice" aria-pressed="false">Practice</button>
+  </nav>
+
+  <!-- SETUP -->
+  <section id="setup">
+    <h2>Read your swing</h2>
+    <p class="sub">Films your body, finds address, top and impact, and flags things worth checking. Works fully on your phone, nothing uploaded anywhere.</p>
+
+    <div class="card">
+      <div class="label">Camera angle</div>
+      <div class="seg" id="viewSeg">
+        <button data-view="face" aria-pressed="true">Face-on
+          <span class="hint">Camera in front of you. Best for sway, tempo, turn.</span>
+        </button>
+        <button data-view="dtl" aria-pressed="false">Down-the-line
+          <span class="hint">Camera behind, along target line. Best for posture.</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="label">Footage</div>
+      <button class="btn" id="pickBtn">Upload a swing clip</button>
+      <input type="file" id="fileIn" accept="video/*" />
+      <p class="note"><b>Any video works.</b> Record your swing and upload it. Keep your whole body in frame, start at address, swing through to the finish. Slo-mo is optional: it captures the fast downswing in sharper detail, but a normal video reads your body positions fine.</p>
+      <div style="height:10px"></div>
+      <button class="btn ghost" id="recBtn">Record live instead</button>
+      <p class="note">Live recording works the same way. Slo-mo upload is just a touch sharper on the fast part of the swing.</p>
+    </div>
+  </section>
+
+  <!-- RECORD -->
+  <section id="record" class="hidden">
+    <h2>Record</h2>
+    <p class="sub">Frame your whole body. Tap start, make your swing, tap stop.</p>
+    <div class="card">
+      <div class="stage">
+        <video id="liveVid" playsinline muted></video>
+        <div class="rec hidden" id="recBadge"><span class="blink"></span><span id="recTime">0.0s</span></div>
+      </div>
+      <div style="height:14px"></div>
+      <button class="btn" id="startRec">Start recording</button>
+      <div style="height:8px"></div>
+      <button class="btn ghost" id="backFromRec">Back</button>
+    </div>
+  </section>
+
+  <!-- PROCESSING -->
+  <section id="processing" class="hidden">
+    <div class="card" style="text-align:center">
+      <div class="spin"></div>
+      <h2 id="procTitle" style="text-align:center">Reading your swing</h2>
+      <p class="sub" id="procSub" style="text-align:center;margin-bottom:18px">Loading the pose tracker…</p>
+      <div class="prog"><i id="progBar"></i></div>
+      <div class="progtxt" id="progTxt">0%</div>
+    </div>
+  </section>
+
+  <!-- RESULTS -->
+  <section id="results" class="hidden">
+    <h2>Swing read</h2>
+    <p class="sub" id="resSub"></p>
+
+    <div class="card">
+      <div class="label">Checkpoints &amp; problems</div>
+      <div id="checkpoints"></div>
+      <p class="note">Problems are pinned under the checkpoint they belong to. Only address, top and impact can be found from one camera; the club-defined positions (P2, P3, P5, P6) need club tracking, which this doesn't do, so a club-only fault like a true overswing can't be confirmed here.</p>
+    </div>
+
+    <div class="card hidden" id="generalCard">
+      <div class="label">Across the swing</div>
+      <div id="generalIssues"></div>
+    </div>
+
+    <div class="card">
+      <div class="label">Measurements</div>
+      <div id="metrics"></div>
+    </div>
+
+    <div class="disclaimer" id="disclaimer"></div>
+
+    <div style="height:16px"></div>
+    <button class="btn" id="routineBtn">See my practice routine</button>
+    <div style="height:8px"></div>
+    <button class="btn ghost" id="againBtn">Read another swing</button>
+  </section>
+
+  <!-- PRACTICE -->
+  <section id="practice" class="hidden">
+    <h2>Practice</h2>
+    <p class="sub">Drills to groove the swing. Your routine is built from your last read; the full library is below to browse anytime.</p>
+
+    <div class="card" id="routineCard">
+      <div class="label">Your routine</div>
+      <div id="routine"></div>
+    </div>
+
+    <div class="card">
+      <div class="label">Drill library</div>
+      <div class="catbar" id="catbar"></div>
+      <div id="library"></div>
+    </div>
+  </section>
+
+  <div id="errBox"></div>
+</div>
+
+<!-- hidden work surfaces -->
+<video id="workVid" class="hidden" playsinline muted preload="auto"></video>
+<canvas id="workCanvas" class="hidden"></canvas>
+
+<script type="module">
+import { PoseLandmarker, FilesetResolver } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.35/vision_bundle.mjs";
+
+// ---------- element refs ----------
+const $ = (id)=>document.getElementById(id);
+const sections = { setup:$("setup"), record:$("record"), processing:$("processing"), results:$("results") };
+let currentRead = "setup";
+let lastRead = null;
+let curCat = "all";
+
+function setTabPressed(tab){
+  $("tabs").querySelectorAll("button").forEach(b=>b.setAttribute("aria-pressed", b.dataset.tab===tab ? "true":"false"));
+}
+function show(name){
+  currentRead = name;
+  for(const k in sections){ sections[k].classList.toggle("hidden", k!==name); }
+  $("practice").classList.add("hidden");
+  setTabPressed("read");
+  window.scrollTo({top:0,behavior:"instant"});
+}
+function showPractice(){
+  for(const k in sections){ sections[k].classList.add("hidden"); }
+  $("practice").classList.remove("hidden");
+  setTabPressed("practice");
+  renderPractice();
+  window.scrollTo({top:0,behavior:"instant"});
+}
+$("tabs").addEventListener("click",(e)=>{
+  const b = e.target.closest("button[data-tab]"); if(!b) return;
+  if(b.dataset.tab==="practice") showPractice(); else show(currentRead);
+});
+
+let view = "face";
+$("viewSeg").addEventListener("click",(e)=>{
+  const b = e.target.closest("button[data-view]"); if(!b) return;
+  view = b.dataset.view;
+  [...$("viewSeg").querySelectorAll("button")].forEach(x=>x.setAttribute("aria-pressed", x===b ? "true":"false"));
+});
+
+$("pickBtn").addEventListener("click",()=>$("fileIn").click());
+$("fileIn").addEventListener("change",(e)=>{
+  const f = e.target.files[0]; if(!f) return;
+  const url = URL.createObjectURL(f);
+  runAnalysis(url);
+});
+$("recBtn").addEventListener("click",openRecorder);
+$("backFromRec").addEventListener("click",()=>{ stopCamera(); show("setup"); });
+$("againBtn").addEventListener("click",()=>{ clearErr(); show("setup"); });
+$("routineBtn").addEventListener("click",()=>{ showPractice(); });
+
+// ---------- error helper ----------
+function showErr(msg){ $("errBox").innerHTML = `<div class="err">${msg}</div>`; }
+function clearErr(){ $("errBox").innerHTML=""; }
+
+// ---------- MediaPipe model (lazy, cached) ----------
+const WASM_URL = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.35/wasm";
+const MODEL_URL = "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/1/pose_landmarker_full.task";
+let landmarker = null;
+async function getLandmarker(onStage){
+  if(landmarker) return landmarker;
+  onStage && onStage("Loading the pose tracker…");
+  let vision;
+  try{
+    vision = await FilesetResolver.forVisionTasks(WASM_URL);
+  }catch(e){
+    throw new Error("Couldn't load the tracker engine (WebAssembly). " + (e && e.message ? e.message : e));
+  }
+  const opts = (delegate)=>({
+    baseOptions:{ modelAssetPath:MODEL_URL, delegate },
+    runningMode:"IMAGE",
+    numPoses:1
+  });
+  try{
+    landmarker = await PoseLandmarker.createFromOptions(vision, opts("GPU"));
+  }catch(eGpu){
+    try{
+      landmarker = await PoseLandmarker.createFromOptions(vision, opts("CPU"));
+    }catch(eCpu){
+      throw new Error("Couldn't load the pose model file. " + (eCpu && eCpu.message ? eCpu.message : eCpu));
+    }
+  }
+  return landmarker;
+}
+
+// ---------- recorder ----------
+let stream=null, recorder=null, chunks=[], recTimer=null, recStart=0;
+async function openRecorder(){
+  clearErr();
+  show("record");
+  try{
+    stream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:"environment", width:{ideal:1280}, height:{ideal:720} }, audio:false });
+  }catch(err){
+    show("setup");
+    showErr("Couldn't open the camera. Check that you allowed camera access, and that you're on https (GitHub Pages is fine).");
+    return;
+  }
+  const lv = $("liveVid"); lv.srcObject = stream; await lv.play().catch(()=>{});
+}
+function stopCamera(){
+  if(stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; }
+  if(recTimer){ clearInterval(recTimer); recTimer=null; }
+}
+$("startRec").addEventListener("click",()=>{
+  if(!stream) return;
+  if(recorder && recorder.state==="recording"){
+    recorder.stop();
+    return;
+  }
+  chunks=[];
+  let mime = "video/mp4";
+  if(!MediaRecorder.isTypeSupported(mime)) mime = "video/webm";
+  recorder = new MediaRecorder(stream, { mimeType:mime });
+  recorder.ondataavailable = (e)=>{ if(e.data.size) chunks.push(e.data); };
+  recorder.onstop = ()=>{
+    if(recTimer){ clearInterval(recTimer); recTimer=null; }
+    $("recBadge").classList.add("hidden");
+    $("startRec").textContent = "Start recording";
+    const blob = new Blob(chunks, { type: chunks[0]?.type || mime });
+    stopCamera();
+    runAnalysis(URL.createObjectURL(blob));
+  };
+  recorder.start();
+  recStart = performance.now();
+  $("recBadge").classList.remove("hidden");
+  $("startRec").textContent = "Stop recording";
+  recTimer = setInterval(()=>{
+    const s = (performance.now()-recStart)/1000;
+    $("recTime").textContent = s.toFixed(1)+"s";
+    if(s>12){ recorder.stop(); } // safety cap
+  },100);
+});
+
+// ---------- analysis pipeline ----------
+const MP = { NOSE:0, L_SH:11, R_SH:12, L_EL:13, R_EL:14, L_WR:15, R_WR:16, L_HIP:23, R_HIP:24, L_KNEE:25, R_KNEE:26, L_ANK:27, R_ANK:28 };
+const MAX_SAMPLES = 160;
+
+// state kept after an analysis so the scrubber can re-measure on demand
+let analysis = null;   // { tracked, dims, indices:{P1,P4,P7}, view }
+let workVid = null, workCv = null, workCtx = null;
+
+async function runAnalysis(srcUrl){
+  clearErr();
+  show("processing");
+  setProg(0,"Loading the pose tracker…");
+  let model;
+  try{
+    model = await getLandmarker((m)=>setProg(2,m));
+  }catch(err){
+    show("setup");
+    showErr("<b>The pose tracker didn't load.</b> Your video is fine and nothing got uploaded; this is the AI model failing to download.<br><br>Most often this is because the page isn't running as a real website. Open it from your <b>GitHub Pages URL</b> in Safari or Chrome, not from an in-app file preview or a file opened directly from Files. If you're already on your Pages URL, check your connection and tap upload again.<br><br><span style=\"opacity:.65;font-family:var(--mono);font-size:.72rem\">" + (err && err.message ? err.message : err) + "</span>");
+    return;
+  }
+
+  const vid = $("workVid");
+  vid.src = srcUrl;
+  try{ await waitEvent(vid,"loadedmetadata",8000); }
+  catch(_){ show("setup"); showErr("Couldn't read that video file. Try a standard .mp4 or .mov clip."); return; }
+
+  const dur = vid.duration;
+  if(!isFinite(dur) || dur<=0 || dur>30){
+    show("setup"); showErr("That clip is "+(isFinite(dur)?dur.toFixed(1)+"s":"an odd length")+". Use a clip between roughly 1 and 12 seconds of a single swing."); return;
+  }
+
+  // sizing
+  const cv = $("workCanvas");
+  const scale = Math.min(1, 480 / (vid.videoWidth||480));
+  const W = Math.round((vid.videoWidth||360)*scale), H = Math.round((vid.videoHeight||480)*scale);
+  cv.width=W; cv.height=H;
+  const ctx = cv.getContext("2d", { willReadFrequently:true });
+
+  // sample timeline
+  const nSamples = Math.min(MAX_SAMPLES, Math.max(24, Math.round(dur*30)));
+  const dt = dur / nSamples;
+  const frames = [];
+
+  setProg(5,"Tracking your body, frame by frame…");
+  for(let i=0;i<nSamples;i++){
+    const t = Math.min(dur-0.001, i*dt);
+    try{ await seekTo(vid, t); }catch(_){ continue; }
+    ctx.drawImage(vid,0,0,W,H);
+    let lm=null, world=null;
+    try{
+      const res = model.detect(cv);
+      if(res && res.landmarks && res.landmarks.length){
+        lm = res.landmarks[0];
+        world = (res.worldLandmarks && res.worldLandmarks.length) ? res.worldLandmarks[0] : null;
+      }
+    }catch(_){ /* skip frame */ }
+    frames.push({ t, lm, world });
+    setProg(5 + Math.round((i/nSamples)*88), "Tracking your body, frame by frame…");
+  }
+
+  const tracked = frames.filter(f=>f.lm && visible(f.lm));
+  if(tracked.length < 8){
+    show("setup");
+    showErr("Couldn't track your body in enough frames. Try: better lighting, your full body in frame, a plainer background, and the camera held steady.");
+    return;
+  }
+
+  setProg(96,"Working out the numbers…");
+  let indices;
+  try{ indices = detectEvents(tracked); }
+  catch(err){ show("setup"); showErr("Something went wrong reading the swing. Try a cleaner clip with the full body in view."); return; }
+
+  // stash state for the scrubber
+  workVid = vid; workCv = cv; workCtx = ctx;
+  analysis = { tracked, total: frames.length, dims:{W,H}, indices, view };
+
+  setProg(100,"Done");
+  await renderResults();
+  show("results");
+}
+
+// ---------- geometry helpers ----------
+function mid(a,b){ return { x:(a.x+b.x)/2, y:(a.y+b.y)/2 }; }
+function dist(a,b){ return Math.hypot(a.x-b.x, a.y-b.y); }
+function visible(lm){
+  // require core torso points with decent visibility
+  const need=[MP.L_SH,MP.R_SH,MP.L_HIP,MP.R_HIP,MP.NOSE];
+  return need.every(i => lm[i] && (lm[i].visibility===undefined || lm[i].visibility>0.4));
+}
+function lineAngle(a,b){ return Math.atan2(b.y-a.y, b.x-a.x) * 180/Math.PI; }
+function spineFromVertical(lm){
+  const sh = mid(lm[MP.L_SH],lm[MP.R_SH]);
+  const hp = mid(lm[MP.L_HIP],lm[MP.R_HIP]);
+  // vector hip->shoulder; angle away from straight-up (image y is down)
+  const dx = sh.x-hp.x, dy = sh.y-hp.y;
+  return Math.abs(Math.atan2(dx, -dy) * 180/Math.PI);
+}
+function wristY(lm){ return (lm[MP.L_WR].y + lm[MP.R_WR].y)/2; }
+
+// ---------- core read ----------
+// Find the three checkpoint indices from the swing shape. Returns indices into `tracked`.
+function detectEvents(tracked){
+  const N = tracked.length;
+  const ts = tracked.map(f=>f.t);
+  const wy = smoothArr(tracked.map(f=>wristY(f.lm)), 2);
+
+  const spd = new Array(N).fill(0);
+  for(let i=1;i<N;i++){
+    const a=tracked[i].lm, b=tracked[i-1].lm;
+    const ax=(a[MP.L_WR].x+a[MP.R_WR].x)/2, ay=(a[MP.L_WR].y+a[MP.R_WR].y)/2;
+    const bx=(b[MP.L_WR].x+b[MP.R_WR].x)/2, by=(b[MP.L_WR].y+b[MP.R_WR].y)/2;
+    const dt=Math.max(1e-3, ts[i]-ts[i-1]);
+    spd[i]=Math.hypot(ax-bx, ay-by)/dt;
+  }
+  const spdS = smoothArr(spd, 2);
+
+  let topI = firstHeightPeak(wy);                 // first height peak = top of backswing
+  let addrI = 0, lowSpd = Infinity;               // stillest frame before the top = address
+  for(let i=0;i<Math.max(1,topI);i++){ if(spdS[i] < lowSpd){ lowSpd=spdS[i]; addrI=i; } }
+  let impactI = lowestAfter(wy, topI);            // lowest hand point after the top = impact
+
+  if(topI<=addrI) topI = Math.min(N-1, Math.max(addrI+1, Math.round(N*0.4)));
+  if(impactI<=topI) impactI = Math.min(N-1, topI + Math.max(1, Math.round((N-topI)*0.5)));
+  return { P1:addrI, P4:topI, P7:impactI };
+}
+
+// Compute the read from whatever three frames are currently selected (auto or scrubbed).
+function measure(tracked, indices, view){
+  const addrI = indices.P1, topI = indices.P4, impactI = indices.P7;
+  const addr = tracked[addrI], top = tracked[topI], impact = tracked[impactI];
+  const aLm = addr.lm;
+  const shoulderW = dist(aLm[MP.L_SH], aLm[MP.R_SH]) || 0.1;
+  const addrNose = { x:aLm[MP.NOSE].x, y:aLm[MP.NOSE].y };
+
+  // head movement: from the flat 2D points, since these keep absolute position in frame
+  // (the 3D world landmarks re-center on the hips each frame, which would hide body sway)
+  const lo = Math.min(addrI, impactI), hi = Math.max(addrI, impactI);
+  let maxLat=0, maxVert=0;
+  for(let i=lo;i<=hi;i++){
+    const n=tracked[i].lm[MP.NOSE];
+    maxLat = Math.max(maxLat, Math.abs(n.x-addrNose.x));
+    maxVert = Math.max(maxVert, Math.abs(n.y-addrNose.y));
+  }
+  const swayPct = maxLat/shoulderW;
+  const liftPct = maxVert/shoulderW;
+
+  // tempo
+  const back = Math.max(0.0001, Math.abs(top.t - addr.t));
+  const down = Math.max(0.0001, Math.abs(impact.t - top.t));
+  const tempoRatio = back/down;
+
+  // turn + posture: prefer the 3D world landmarks (real rotation about the body's
+  // vertical axis), fall back to the flat 2D proxy only if world points are missing
+  const useWorld = addr.world && top.world;
+  let shoulderTurn, hipTurn, spineChange, turnMode;
+  if(useWorld){
+    shoulderTurn = Math.abs(angDiff(horizAngle(top.world,MP.L_SH,MP.R_SH), horizAngle(addr.world,MP.L_SH,MP.R_SH)));
+    hipTurn      = Math.abs(angDiff(horizAngle(top.world,MP.L_HIP,MP.R_HIP), horizAngle(addr.world,MP.L_HIP,MP.R_HIP)));
+    spineChange  = Math.abs(spineWorld(top.world) - spineWorld(addr.world));
+    turnMode = "3D";
+  } else {
+    shoulderTurn = Math.abs(angDiff(lineAngle(top.lm[MP.L_SH],top.lm[MP.R_SH]), lineAngle(aLm[MP.L_SH],aLm[MP.R_SH])));
+    hipTurn      = Math.abs(angDiff(lineAngle(top.lm[MP.L_HIP],top.lm[MP.R_HIP]), lineAngle(aLm[MP.L_HIP],aLm[MP.R_HIP])));
+    spineChange  = Math.abs(spineFromVertical(top.lm) - spineFromVertical(aLm));
+    turnMode = "2D";
+  }
+  const separation = Math.max(0, shoulderTurn - hipTurn);
+
+  return {
+    view, turnMode,
+    indices:{ P1:addrI, P4:topI, P7:impactI },
+    keyframes:{
+      P1:{ label:"Address", idx:addrI },
+      P4:{ label:"Top of backswing", idx:topI },
+      P7:{ label:"Impact", idx:impactI }
+    },
+    metrics:{ swayPct, liftPct, tempoRatio, shoulderTurn, hipTurn, separation, spineChange },
+    quality:{ tracked: tracked.length }
+  };
+}
+function angDiff(a,b){ let d=a-b; while(d>180)d-=360; while(d<-180)d+=360; return d; }
+
+// world-landmark helpers (3D, metres, origin at hip centre)
+function horizAngle(world, iL, iR){
+  // angle of the L->R line in the horizontal (x-z) plane = rotation about the vertical axis
+  const dx = world[iR].x - world[iL].x;
+  const dz = world[iR].z - world[iL].z;
+  return Math.atan2(dz, dx) * 180/Math.PI;
+}
+function spineWorld(world){
+  const sh = { x:(world[MP.L_SH].x+world[MP.R_SH].x)/2, y:(world[MP.L_SH].y+world[MP.R_SH].y)/2, z:(world[MP.L_SH].z+world[MP.R_SH].z)/2 };
+  const hp = { x:(world[MP.L_HIP].x+world[MP.R_HIP].x)/2, y:(world[MP.L_HIP].y+world[MP.R_HIP].y)/2, z:(world[MP.L_HIP].z+world[MP.R_HIP].z)/2 };
+  const horiz = Math.hypot(sh.x-hp.x, sh.z-hp.z);
+  const vert = Math.abs(sh.y-hp.y);
+  return Math.atan2(horiz, vert) * 180/Math.PI;   // tilt of the spine away from vertical
+}
+
+// moving-average smoothing over a numeric array
+function smoothArr(arr, k){
+  const out = arr.slice();
+  for(let i=0;i<arr.length;i++){
+    let s=0,c=0;
+    for(let j=Math.max(0,i-k); j<=Math.min(arr.length-1,i+k); j++){ s+=arr[j]; c++; }
+    out[i]=s/c;
+  }
+  return out;
+}
+// first prominent minimum in y (hands highest), returned once the series rises past it again
+function firstHeightPeak(y){
+  const margin = 0.05;
+  let minVal = y[0], minIdx = 0;
+  for(let i=1;i<y.length;i++){
+    if(y[i] < minVal){ minVal = y[i]; minIdx = i; }
+    else if(minIdx >= 2 && y[i] > minVal + margin){ return minIdx; }
+  }
+  return minIdx;
+}
+// largest y (hands lowest) after fromI, returned once the series falls past it again
+function lowestAfter(y, fromI){
+  const margin = 0.05;
+  let maxVal = y[fromI], maxIdx = fromI;
+  for(let i=fromI+1;i<y.length;i++){
+    if(y[i] > maxVal){ maxVal = y[i]; maxIdx = i; }
+    else if(y[i] < maxVal - margin){ return maxIdx; }
+  }
+  return maxIdx;
+}
+
+// ---------- rendering ----------
+const faultHTML = (f)=>`<div class="fault"><div class="ptag">${f.tag}</div><h3>${f.title}</h3><p>${f.why}</p><div class="drill"><b>Drill</b>${f.drill}</div></div>`;
+
+async function renderResults(){
+  const { tracked, dims, indices, view } = analysis;
+  const read = measure(tracked, indices, view);
+  lastRead = read;
+  const N = tracked.length;
+
+  $("resSub").textContent = (view==="face"
+    ? "Face-on view: sway, tempo and turn are most trustworthy. "
+    : "Down-the-line view: posture and tempo are most trustworthy. ")
+    + "If a checkpoint frame is wrong, drag its slider and everything recomputes.";
+
+  // build the three checkpoint blocks (structure first, images after)
+  const cpBox = $("checkpoints"); cpBox.innerHTML="";
+  for(const [key,label] of [["P1","Address"],["P4","Top of backswing"],["P7","Impact"]]){
+    const idx = indices[key];
+    const block = document.createElement("div"); block.className="cp";
+    block.innerHTML =
+      `<div class="cphead"><span class="cpp">${key}</span><span class="cpn">${label}</span></div>
+       <div class="cpframe"><canvas id="cv-${key}" width="${dims.W}" height="${dims.H}"></canvas></div>
+       <div class="cpscrub">
+         <input type="range" id="sl-${key}" min="0" max="${N-1}" value="${idx}" step="1" aria-label="Adjust ${label} frame" />
+         <span class="cpscrub-lbl" id="lbl-${key}">frame ${idx+1} / ${N}</span>
+       </div>
+       <div class="cpprobs" id="probs-${key}"></div>`;
+    cpBox.appendChild(block);
+  }
+
+  renderProblemsAndMetrics(read);
+
+  // draw the frames from the video (sequential: one shared video element)
+  for(const key of ["P1","P4","P7"]) await drawIndexToCanvas($("cv-"+key), indices[key]);
+
+  // wire the sliders
+  for(const key of ["P1","P4","P7"]){
+    const sl = $("sl-"+key);
+    sl.addEventListener("input", ()=>onScrubInput(key, +sl.value));
+    sl.addEventListener("change", ()=>onScrubCommit(key, +sl.value));
+  }
+}
+
+function renderProblemsAndMetrics(read){
+  const fb = buildFeedback(read);
+  const byFrame = { P1:[], P4:[], P7:[], general:[] };
+  fb.forEach(f => { (byFrame[f.frame] || byFrame.general).push(f); });
+
+  for(const key of ["P1","P4","P7"]){
+    const box=$("probs-"+key); if(!box) continue;
+    const probs=byFrame[key];
+    box.innerHTML = probs.length ? probs.map(faultHTML).join("") : `<p class="cp-clean">Nothing flagged at this position.</p>`;
+  }
+  const genCard=$("generalCard"), gBox=$("generalIssues");
+  if(byFrame.general.length){ genCard.classList.remove("hidden"); gBox.innerHTML=byFrame.general.map(faultHTML).join(""); }
+  else { genCard.classList.add("hidden"); }
+
+  const m=read.metrics;
+  const tempoTxt=m.tempoRatio.toFixed(1)+":1";
+  const tempoFlag=(m.tempoRatio>=2.4 && m.tempoRatio<=3.6);
+  const tag = read.turnMode==="3D" ? "3D est." : "2D est.";
+  const rows=[
+    { k:"Tempo", s:"backswing : downswing (ideal ≈ 3:1)", v:tempoTxt, flag:tempoFlag?"ok":"flag" },
+    { k:"Head sway", s:"side-to-side, in shoulder-widths", v:m.swayPct.toFixed(2), u:"sw", flag:m.swayPct<0.5?"ok":"flag" },
+    { k:"Head lift / dip", s:"up-down, in shoulder-widths", v:m.liftPct.toFixed(2), u:"sw", flag:m.liftPct<0.4?"ok":"flag" },
+    { k:"Shoulder turn ("+tag+")", s:"rotation, address → top", v:Math.round(m.shoulderTurn), u:"°", flag:null },
+    { k:"Hip turn ("+tag+")", s:"rotation, address → top", v:Math.round(m.hipTurn), u:"°", flag:null },
+    { k:"Separation (X-factor)", s:"shoulder minus hip", v:Math.round(m.separation), u:"°", flag:null },
+    { k:"Posture change ("+tag+")", s:"spine tilt, address → top", v:Math.round(m.spineChange), u:"°", flag:m.spineChange<10?"ok":"flag" },
+  ];
+  const mEl=$("metrics"); mEl.innerHTML="";
+  rows.forEach(r=>{
+    const d=document.createElement("div"); d.className="metric";
+    const pill=r.flag?`<span class="pill ${r.flag==='ok'?'ok':'flag'}">${r.flag==='ok'?'in range':'check'}</span>`:"";
+    d.innerHTML=`<div class="k">${r.k}${pill}<small>${r.s}</small></div><div class="v">${r.v}${r.u?`<span class="u">${r.u}</span>`:""}</div>`;
+    mEl.appendChild(d);
+  });
+
+  $("disclaimer").innerHTML = `<b>Read this with a pinch of salt.</b> From one phone camera this reads your body, not the club, so swing-plane and clubface faults aren't covered. Turn and posture now use a 3D estimate of your body, better than before but still a single-camera guess at depth. If a frame looks wrong, drag its slider and the numbers recompute from what you confirm. Tracked ${read.quality.tracked} frames.`;
+}
+
+// draw a tracked-frame index onto a canvas: seek the video, draw it, overlay the skeleton
+async function drawIndexToCanvas(canvas, idx){
+  if(!canvas || !analysis) return;
+  const f = analysis.tracked[idx], dims = analysis.dims;
+  const ctx = canvas.getContext("2d");
+  try{
+    await seekTo(workVid, f.t);
+    ctx.drawImage(workVid, 0,0, dims.W, dims.H);
+  }catch(_){ ctx.fillStyle="#000"; ctx.fillRect(0,0,dims.W,dims.H); }
+  drawSkeleton(ctx, f.lm, dims);
+}
+
+// live preview while dragging (coalesces rapid events; one shared video)
+let scrubState = { busy:false, pending:null };
+async function onScrubInput(key, idx){
+  const N = analysis.tracked.length;
+  $("lbl-"+key).textContent = `frame ${idx+1} / ${N}`;
+  scrubState.pending = { key, idx };
+  if(scrubState.busy) return;
+  scrubState.busy = true;
+  while(scrubState.pending){
+    const { key:k, idx:i } = scrubState.pending; scrubState.pending=null;
+    await drawIndexToCanvas($("cv-"+k), i);
+  }
+  scrubState.busy = false;
+}
+
+// on release: commit the index, keep the order sane, recompute everything
+async function onScrubCommit(key, idx){
+  analysis.indices[key] = idx;
+  enforceOrder(key);
+  const read = measure(analysis.tracked, analysis.indices, analysis.view);
+  lastRead = read;
+  renderProblemsAndMetrics(read);
+  // sync any sliders that enforceOrder nudged, then redraw all three frames
+  for(const k of ["P1","P4","P7"]){
+    const sl=$("sl-"+k);
+    if(sl){ sl.value=analysis.indices[k]; $("lbl-"+k).textContent=`frame ${analysis.indices[k]+1} / ${analysis.tracked.length}`; }
+  }
+  for(const k of ["P1","P4","P7"]) await drawIndexToCanvas($("cv-"+k), analysis.indices[k]);
+}
+
+function enforceOrder(changed){
+  const N = analysis.tracked.length;
+  let { P1,P4,P7 } = analysis.indices;
+  if(changed==="P1" && P1>=P4) P4 = Math.min(N-1, P1+1);
+  if(changed==="P4"){ if(P4<=P1) P1=Math.max(0,P4-1); if(P4>=P7) P7=Math.min(N-1,P4+1); }
+  if(changed==="P7" && P7<=P4) P4 = Math.max(0, P7-1);
+  if(P1<0)P1=0; if(P7>N-1)P7=N-1;
+  analysis.indices = { P1,P4,P7 };
+}
+
+function buildFeedback(read){
+  const m = read.metrics, out=[];
+  if(m.tempoRatio < 2.4){
+    out.push({ frame:"general", tag:"tempo", title:"Quick transition", why:"Your downswing starts almost as fast as your backswing finishes, which usually means rushing from the top before the backswing is fully loaded.",
+      drill:"Count \"one-two-three\" going back and \"one\" coming down. Make a few slow swings holding the top for a beat before you start down." });
+  } else if(m.tempoRatio > 3.6){
+    out.push({ frame:"general", tag:"tempo", title:"Slow or stalling transition", why:"A long gap between top and impact can mean the upper and lower body have come apart, or that you're decelerating into the ball.",
+      drill:"Swing to a steady beat (a metronome around 76 bpm works). Aim for a smooth 3-to-1 feel rather than a pause-then-lunge." });
+  }
+  if(m.swayPct >= 0.5){
+    out.push({ frame:"P4", tag:"centre", title:"Head sliding off the ball", why:"Your head drifts more than half a shoulder-width to the side on the way back. Sway moves the low point around and makes solid contact a timing fight.",
+      drill:"Feet-together drill: hit half swings with your feet almost touching. You can't sway without losing balance, so you learn to turn around a steady centre." });
+  }
+  if(m.liftPct >= 0.4){
+    out.push({ frame:"P7", tag:"height", title:"Head lifting or dipping", why:"Your head changes height noticeably through the swing, which changes how far you are from the ball at impact and hurts strike consistency.",
+      drill:"Keep the gap between your chin and lead shoulder constant. Make slow swings watching that the crown of your head stays at the same level." });
+  }
+  if(m.spineChange >= 10){
+    out.push({ frame:"P4", tag:"posture", title:"Losing your spine angle", why:"Your forward tilt changes a lot from address to the top. Standing up out of posture early is a common cause of thin and toe strikes and of an over-the-top move. This is a 3D estimate, so treat it as a flag to check.",
+      drill:"Set up with a wall behind you (down-the-line). Make backswings keeping your backside lightly brushing the wall so your forward tilt holds." });
+  }
+  if(m.shoulderTurn < 45){
+    out.push({ frame:"P4", tag:"turn", title:"Limited shoulder turn", why:"Your shoulders rotate less than you'd want at the top, which points to a short, arms-y backswing and lost power. This is a single-camera 3D estimate, so confirm it against the frame.",
+      drill:"Cross your arms over your chest and turn your lead shoulder behind the ball until your back faces the target. Then rebuild the swing keeping that fuller turn." });
+  }
+  return out;
+}
+
+function drawSkeleton(ctx, lm, dims){
+  if(!lm) return;
+  const P=(i)=>({x:lm[i].x*dims.W, y:lm[i].y*dims.H});
+  const bones = [
+    [MP.L_SH,MP.R_SH],[MP.L_HIP,MP.R_HIP],[MP.L_SH,MP.L_HIP],[MP.R_SH,MP.R_HIP],
+    [MP.L_SH,MP.L_EL],[MP.L_EL,MP.L_WR],[MP.R_SH,MP.R_EL],[MP.R_EL,MP.R_WR],
+    [MP.L_HIP,MP.L_KNEE],[MP.L_KNEE,MP.L_ANK],[MP.R_HIP,MP.R_KNEE],[MP.R_KNEE,MP.R_ANK]
+  ];
+  ctx.lineWidth = Math.max(2, dims.W*0.008);
+  ctx.strokeStyle = "rgba(217,242,78,0.95)";
+  ctx.lineCap="round";
+  bones.forEach(([a,b])=>{
+    if(!lm[a]||!lm[b]) return;
+    const pa=P(a), pb=P(b);
+    ctx.beginPath(); ctx.moveTo(pa.x,pa.y); ctx.lineTo(pb.x,pb.y); ctx.stroke();
+  });
+  ctx.fillStyle="#EAF2EC";
+  [MP.NOSE,MP.L_SH,MP.R_SH,MP.L_HIP,MP.R_HIP,MP.L_WR,MP.R_WR].forEach(i=>{
+    if(!lm[i])return; const p=P(i);
+    ctx.beginPath(); ctx.arc(p.x,p.y,Math.max(2.5,dims.W*0.012),0,7); ctx.fill();
+  });
+}
+
+// ---------- practice library ----------
+const CATS = [
+  { id:"all", label:"All" },
+  { id:"tempo", label:"Tempo" },
+  { id:"turn", label:"Turn" },
+  { id:"contact", label:"Contact" },
+  { id:"posture", label:"Posture" },
+  { id:"balance", label:"Balance" },
+];
+const DRILLS = [
+  { name:"Metronome swings", cat:"tempo", helps:"Grooves a smooth 3-to-1 rhythm.", how:"Set a metronome near 76 bpm. Swing back over three beats, then down and through on one. Make ten swings matching the beat." },
+  { name:"\"1-2-3 / 1\" count", cat:"tempo", helps:"Builds tempo with no device.", how:"Count \"one-two-three\" as you swing back, then a single \"one\" coming down. Keep the count identical on every swing." },
+  { name:"Whoosh drill", cat:"tempo", helps:"Moves your speed to the bottom, not the top.", how:"Turn a club upside down and hold the head end. Swing to make the loudest whoosh down by the ball, never early in the downswing." },
+  { name:"Cross-arms turn", cat:"turn", helps:"Trains a full shoulder turn.", how:"Fold your arms across your chest. Turn your lead shoulder behind the ball until your back faces the target. Hold, then unwind. Ten reps." },
+  { name:"Back-to-target", cat:"turn", helps:"Checks the backswing is complete.", how:"At the top, pause and feel your back pointing at the target. If it isn't, you stopped short. Rehearse slowly into the full position." },
+  { name:"Lead-arm-only swings", cat:"turn", helps:"Connects your arms to your body turn.", how:"Swing with only your lead arm on the club, slow and short. It forces your chest to move the club instead of your hands flicking it." },
+  { name:"Tee-line brush", cat:"contact", helps:"Trains a low point after the ball.", how:"Lay a tee or line on the ground. Brush the grass so the brush starts at the line and moves toward the target, not behind it." },
+  { name:"Towel-behind-ball", cat:"contact", helps:"Stops hitting it fat.", how:"Place a folded towel a hand's width behind the ball. Make swings that miss the towel and catch the ball first." },
+  { name:"Punch shots", cat:"contact", helps:"Centers your strike.", how:"Hit half-length shots to a low, controlled finish. The shorter motion makes it easier to find the middle of the face." },
+  { name:"Wall butt-brush", cat:"posture", helps:"Keeps your forward tilt (down-the-line).", how:"Stand with your backside lightly touching a wall behind you. Make backswings keeping that contact so you don't stand up early." },
+  { name:"Mirror posture check", cat:"posture", helps:"Builds a repeatable setup.", how:"At address in a mirror, check tilt from the hips, soft knees, and a straight spine. Rebuild it a few times until it feels automatic." },
+  { name:"Club-on-spine", cat:"posture", helps:"Feels a neutral spine angle.", how:"Hold a club along your spine touching head, mid-back and tailbone. Bend from the hips keeping all three points touching to learn the tilt." },
+  { name:"Feet-together", cat:"balance", helps:"Stops swaying and finds your center.", how:"Hit half swings with your feet almost touching. You can't sway without losing balance, so you learn to turn around a steady center." },
+  { name:"Hold the finish", cat:"balance", helps:"Trains a balanced, full release.", how:"Swing and freeze your finish for three full seconds, weight on your lead foot, back foot up on its toe. If you can't hold it, you were off balance." },
+  { name:"Eyes-closed swings", cat:"balance", helps:"Sharpens balance awareness.", how:"Make slow, smooth swings with your eyes closed and no ball. Feel where your weight sits. Good for grooving a centered motion." },
+];
+function pickDrill(cat){ return DRILLS.find(d=>d.cat===cat); }
+function catLabel(id){ return (CATS.find(c=>c.id===id)||{}).label || id; }
+
+function renderPractice(){ renderRoutine(); renderCatbar(); renderLibrary(); }
+
+function renderCatbar(){
+  const bar=$("catbar"); bar.innerHTML="";
+  CATS.forEach(c=>{
+    const b=document.createElement("button");
+    b.textContent=c.label; b.dataset.cat=c.id;
+    b.setAttribute("aria-pressed", c.id===curCat?"true":"false");
+    b.addEventListener("click",()=>{ curCat=c.id; renderCatbar(); renderLibrary(); });
+    bar.appendChild(b);
+  });
+}
+function renderLibrary(){
+  const lib=$("library"); lib.innerHTML="";
+  DRILLS.filter(d=>curCat==="all"||d.cat===curCat).forEach(d=>{
+    const el=document.createElement("div"); el.className="drill-item";
+    el.innerHTML=`<div class="dt"><h3>${d.name}</h3><span class="cat">${d.cat}</span></div>
+      <div class="helps">${d.helps}</div><div class="how">${d.how}</div>`;
+    lib.appendChild(el);
+  });
+}
+function renderRoutine(){
+  const box=$("routine");
+  if(!lastRead){
+    box.innerHTML=`<p class="routine-empty">Read a swing first and a routine gets built around what it finds. For now, browse the full library below.</p>`;
+    return;
+  }
+  const m=lastRead.metrics, flagged=[];
+  if(m.tempoRatio<2.4 || m.tempoRatio>3.6) flagged.push("tempo");
+  if(m.swayPct>=0.5) flagged.push("balance");
+  if(m.liftPct>=0.4) flagged.push("posture");
+  if(m.spineChange>=10 && !flagged.includes("posture")) flagged.push("posture");
+  if(m.shoulderTurn<45 && !flagged.includes("turn")) flagged.push("turn");
+
+  let picks;
+  if(flagged.length===0){
+    picks=[ pickDrill("tempo"), pickDrill("balance"), pickDrill("turn") ];
+  } else {
+    picks = flagged.map(pickDrill);
+    if(!flagged.includes("balance")) picks.push(DRILLS.find(d=>d.name==="Hold the finish"));
+  }
+  picks = picks.filter(Boolean).slice(0,4);
+
+  const intro = flagged.length===0
+    ? "Your read came back clean on what this measures, so here's a short maintenance set to keep tempo, balance and turn sharp."
+    : `Built from your last read. It targets ${flagged.map(catLabel).join(", ").toLowerCase()}. Run through it for ten to fifteen minutes.`;
+
+  box.innerHTML = `<p class="routine-intro">${intro}</p>` + picks.map((d,i)=>
+    `<div class="routine-step"><div class="num">${i+1}</div><div><h3>${d.name}</h3><p>${d.how}</p></div></div>`
+  ).join("");
+}
+
+// ---------- async utils ----------
+function setProg(pct,txt){
+  $("progBar").style.width = pct+"%";
+  $("progTxt").textContent = pct+"%";
+  if(txt){ $("procSub").textContent = txt; }
+}
+function waitEvent(el,ev,timeout){
+  return new Promise((res,rej)=>{
+    let done=false;
+    const ok=()=>{ if(done)return; done=true; cleanup(); res(); };
+    const to=setTimeout(()=>{ if(done)return; done=true; cleanup(); rej(new Error("timeout")); }, timeout||6000);
+    function cleanup(){ el.removeEventListener(ev,ok); clearTimeout(to); }
+    el.addEventListener(ev,ok,{once:true});
+  });
+}
+function seekTo(video, t){
+  return new Promise((res,rej)=>{
+    let done=false;
+    const ok=()=>{ if(done)return; done=true; cleanup(); res(); };
+    const to=setTimeout(ok, 600); // don't hang on a stubborn frame
+    function cleanup(){ video.removeEventListener("seeked",ok); clearTimeout(to); }
+    video.addEventListener("seeked",ok,{once:true});
+    try{ video.currentTime = t; }catch(e){ cleanup(); rej(e); }
+  });
+}
+</script>
+</body>
+</html>
